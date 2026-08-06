@@ -6,7 +6,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { createMemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
-import type { HttpClient } from "../foundation/http-client";
+import { BrowserHttpClient, type HttpClient } from "../foundation/http-client";
 import { createApplicationRouter } from "../router/application-router";
 import {
   Bootstrap,
@@ -27,6 +27,23 @@ const compatibleHandshake = {
 
 afterEach(cleanup);
 
+function createDependencies(
+  overrides: Partial<BootstrapDependencies> = {},
+): BootstrapDependencies {
+  return {
+    loadRuntimeConfig: async () => ({
+      expectedApiMajor: 1,
+      expectedReleaseIdentity: "2026.08.06-test",
+    }),
+    createHttpClient: () => ({ execute: vi.fn() }),
+    createStartupClient: () => ({
+      getStartupHandshake: async () => ({ data: compatibleHandshake }),
+    }),
+    createRouter: () => createMemoryRouter([{ path: "*", element: null }]),
+    ...overrides,
+  };
+}
+
 describe("browser bootstrap", () => {
   test("loads config before networking and creates one Router only after a compatible handshake", async () => {
     const events: string[] = [];
@@ -43,7 +60,7 @@ describe("browser bootstrap", () => {
       events.push("router");
       return createApplicationRouter(identity);
     });
-    const dependencies: BootstrapDependencies = {
+    const dependencies = createDependencies({
       loadRuntimeConfig: async () => {
         events.push("config");
         return {
@@ -61,7 +78,7 @@ describe("browser bootstrap", () => {
         return startupClient;
       },
       createRouter,
-    };
+    });
 
     render(<Bootstrap dependencies={dependencies} />);
 
@@ -76,14 +93,14 @@ describe("browser bootstrap", () => {
   test("shows a configuration failure without creating HttpClient or Router", async () => {
     const createHttpClient = vi.fn();
     const createRouter = vi.fn(() => createMemoryRouter([]));
-    const dependencies: BootstrapDependencies = {
+    const dependencies = createDependencies({
       loadRuntimeConfig: async () => {
         throw new RuntimeConfigError("runtime config contains unknown fields");
       },
       createHttpClient,
       createStartupClient: vi.fn(),
       createRouter,
-    };
+    });
 
     render(<Bootstrap dependencies={dependencies} />);
 
@@ -94,45 +111,46 @@ describe("browser bootstrap", () => {
     expect(createRouter).not.toHaveBeenCalled();
   });
 
-  test("shows a backend failure when the handshake is unavailable", async () => {
+  test("shows a backend failure when the handshake times out", async () => {
     const createRouter = vi.fn(() => createMemoryRouter([]));
-    const dependencies: BootstrapDependencies = {
-      loadRuntimeConfig: async () => ({
-        expectedApiMajor: 1,
-        expectedReleaseIdentity: "2026.08.06-test",
-      }),
-      createHttpClient: () => ({ execute: vi.fn() }),
-      createStartupClient: () => ({
+    const executeFetch = vi.fn(
+      (request: Request) =>
+        new Promise<Response>((_resolve, reject) => {
+          request.signal.addEventListener("abort", () => reject(request.signal.reason), {
+            once: true,
+          });
+        }),
+    );
+    const dependencies = createDependencies({
+      createHttpClient: () => new BrowserHttpClient(executeFetch, 5),
+      createStartupClient: (httpClient) => ({
         getStartupHandshake: async () => {
-          throw new TypeError("fetch failed");
+          await httpClient.execute(new Request("https://monitra.test/api/v1/startup-handshake"));
+          return { data: compatibleHandshake };
         },
       }),
       createRouter,
-    };
+    });
 
     render(<Bootstrap dependencies={dependencies} />);
 
     expect(await screen.findByRole("heading", { name: "Backend is unavailable" })).toBeVisible();
     expect(screen.getByRole("alert")).toHaveTextContent("The startup handshake could not be completed.");
     expect(screen.queryByRole("heading", { name: "Monitra is ready" })).not.toBeInTheDocument();
+    expect(executeFetch.mock.calls[0]?.[0].signal.aborted).toBe(true);
     expect(createRouter).not.toHaveBeenCalled();
   });
 
   test("shows a backend failure for an unusable handshake response", async () => {
     const createRouter = vi.fn(() => createMemoryRouter([]));
-    const dependencies: BootstrapDependencies = {
-      loadRuntimeConfig: async () => ({
-        expectedApiMajor: 1,
-        expectedReleaseIdentity: "2026.08.06-test",
-      }),
-      createHttpClient: () => ({ execute: vi.fn() }),
+    const dependencies = createDependencies({
       createStartupClient: () => ({
         getStartupHandshake: async () => ({
           data: { ...compatibleHandshake, request_id: "" },
         }),
       }),
       createRouter,
-    };
+    });
 
     render(<Bootstrap dependencies={dependencies} />);
 
@@ -142,12 +160,7 @@ describe("browser bootstrap", () => {
 
   test("rejects an incompatible API major before creating the Router", async () => {
     const createRouter = vi.fn(() => createMemoryRouter([]));
-    const dependencies: BootstrapDependencies = {
-      loadRuntimeConfig: async () => ({
-        expectedApiMajor: 1,
-        expectedReleaseIdentity: "2026.08.06-test",
-      }),
-      createHttpClient: () => ({ execute: vi.fn() }),
+    const dependencies = createDependencies({
       createStartupClient: () => ({
         getStartupHandshake: async () => ({
           data: {
@@ -157,7 +170,7 @@ describe("browser bootstrap", () => {
         }),
       }),
       createRouter,
-    };
+    });
 
     render(<Bootstrap dependencies={dependencies} />);
 
@@ -169,17 +182,13 @@ describe("browser bootstrap", () => {
 
   test("rejects an incompatible Release Identity before creating the Router", async () => {
     const createRouter = vi.fn(() => createMemoryRouter([]));
-    const dependencies: BootstrapDependencies = {
+    const dependencies = createDependencies({
       loadRuntimeConfig: async () => ({
         expectedApiMajor: 1,
         expectedReleaseIdentity: "2026.08.06-web",
       }),
-      createHttpClient: () => ({ execute: vi.fn() }),
-      createStartupClient: () => ({
-        getStartupHandshake: async () => ({ data: compatibleHandshake }),
-      }),
       createRouter,
-    };
+    });
 
     render(<Bootstrap dependencies={dependencies} />);
 

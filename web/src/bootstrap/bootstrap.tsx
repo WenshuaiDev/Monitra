@@ -63,41 +63,46 @@ export function Bootstrap({ dependencies }: { dependencies: BootstrapDependencie
   if (state.status === "failure") {
     if (state.kind === "release") {
       return (
-        <main role="alert">
-          <h1>Release Identity is incompatible</h1>
-          <p>
-            Expected Release Identity {state.expected} but received {state.actual}.
-          </p>
-        </main>
+        <FailureView
+          title="Release Identity is incompatible"
+          message={`Expected Release Identity ${state.expected} but received ${state.actual}.`}
+        />
       );
     }
     if (state.kind === "api") {
       return (
-        <main role="alert">
-          <h1>API version is incompatible</h1>
-          <p>
-            Expected API major {state.expected} but received {state.actual}.
-          </p>
-        </main>
+        <FailureView
+          title="API version is incompatible"
+          message={`Expected API major ${state.expected} but received ${state.actual}.`}
+        />
       );
     }
     if (state.kind === "backend") {
       return (
-        <main role="alert">
-          <h1>Backend is unavailable</h1>
-          <p>The startup handshake could not be completed.</p>
-        </main>
+        <FailureView
+          title="Backend is unavailable"
+          message="The startup handshake could not be completed."
+        />
       );
     }
     return (
-      <main role="alert">
-        <h1>Runtime configuration is invalid</h1>
-        <p>Check the deployment-time browser configuration.</p>
-      </main>
+      <FailureView
+        title="Runtime configuration is invalid"
+        message="Check the deployment-time browser configuration."
+      />
     );
   }
 
   return <p role="status">Starting Monitra…</p>;
+}
+
+function FailureView({ title, message }: { title: string; message: string }) {
+  return (
+    <main role="alert">
+      <h1>{title}</h1>
+      <p>{message}</p>
+    </main>
+  );
 }
 
 async function startApplication(dependencies: BootstrapDependencies): Promise<BootstrapState> {
