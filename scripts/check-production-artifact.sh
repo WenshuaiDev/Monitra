@@ -31,7 +31,9 @@ while IFS= read -r artifact_path || [[ -n "${artifact_path}" ]]; do
   reason=
 
   case "${artifact_path}" in
-    *playwright*)
+    usr/bin/test)
+      ;;
+    *playwright* | node_modules/* | */node_modules/* | */ms-playwright/* | */playwright-report/* | */test-results/*)
       reason=test-dependency
       ;;
     *chromium* | *chrome* | *firefox* | *webkit* | *browser-binary*)
@@ -40,51 +42,11 @@ while IFS= read -r artifact_path || [[ -n "${artifact_path}" ]]; do
     *e2e*)
       reason=test-control
       ;;
-    *test*)
-      if [[ "${artifact_path}" != usr/bin/test ]]; then
-        reason=test-source-or-control
-      fi
+    dependencies/*/nodejs* | dependencies/*/npm | dependencies/*/pnpm | dependencies/*/vite* | dependencies/*/webpack* | */bin/node | */bin/npm | */bin/pnpm | */bin/yarn | */bin/serve | */bin/http-server | */bin/*dev-server* | */bin/vite* | */bin/webpack* | */bin/parcel | */bin/react-scripts | */bin/next)
+      reason=test-or-development-runtime
       ;;
-  esac
-
-  artifact_directory=${artifact_path%/*}
-  if [[ "${artifact_directory}" == "${artifact_path}" ]]; then
-    artifact_directory=
-  fi
-  case "/${artifact_directory}/" in
-    */node_modules/* | */ms-playwright/* | */playwright-report/* | */test-results/*)
-      reason=test-dependency
-      ;;
-    */google/chrome/* | */chrome-linux/* | */firefox/* | */webkit/*)
-      reason=browser-runtime
-      ;;
-    */e2e/* | */test/* | */tests/*)
-      reason=test-source
-      ;;
-  esac
-
-  artifact_name=${artifact_path##*/}
-  case "${artifact_name}" in
-    *.spec.js | *.spec.jsx | *.spec.ts | *.spec.tsx | *.test.js | *.test.jsx | *.test.ts | *.test.tsx | *_test.go)
-      reason=${reason:-test-source}
-      ;;
-    playwright.config | playwright.config.* | *__e2e*)
-      reason=${reason:-test-control}
-      ;;
-    serve | http-server | *dev-server* | vite* | webpack* | parcel | react-scripts | next)
-      reason=${reason:-development-server}
-      ;;
-  esac
-
-  case "${artifact_path}" in
-    dependencies/*/playwright* | dependencies/*/chromium* | dependencies/*/google-chrome* | dependencies/*/firefox* | dependencies/*/webkit* | dependencies/*/nodejs* | dependencies/*/npm | dependencies/*/pnpm | dependencies/*/vite* | dependencies/*/webpack*)
-      reason=${reason:-test-or-development-dependency}
-      ;;
-    */bin/playwright | */bin/chromium | */bin/chromium-browser | */bin/chrome | */bin/google-chrome | */bin/google-chrome-stable | */bin/firefox | */bin/webkit | */bin/vite | */bin/vite-node | */bin/webpack | */bin/webpack-dev-server | */bin/http-server | */bin/react-scripts | */bin/next | */bin/node | */bin/npm | */bin/pnpm | */bin/yarn)
-      reason=${reason:-test-or-development-runtime}
-      ;;
-    *e2e-control* | *e2e_control* | *test-control* | *test_control*)
-      reason=${reason:-test-control}
+    *test* | *.spec.js | *.spec.jsx | *.spec.ts | *.spec.tsx)
+      reason=test-source-or-control
       ;;
   esac
 
