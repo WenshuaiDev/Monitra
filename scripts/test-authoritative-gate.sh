@@ -35,16 +35,16 @@ printf '%s\n' \
   'test:production:artifacts' >"${expected_all}"
 printf '%s\n' 'check:format' 'test:authoritative-gate' 'check:go' 'api:check' >"${expected_before_failure}"
 
-MONITRA_CHECK_TASKFILE="${fixture}" \
+MONITRA_CHECK_TASKFILE="${test_directory}/environment-must-not-override" \
 MONITRA_GATE_PROBE_LOG="${success_log}" \
-  "${runner}" >/dev/null
+  "${runner}" --taskfile "${fixture}" >/dev/null
 cmp "${expected_all}" "${success_log}"
 
 set +e
-MONITRA_CHECK_TASKFILE="${fixture}" \
+MONITRA_CHECK_TASKFILE="${test_directory}/environment-must-not-override" \
 MONITRA_GATE_PROBE_LOG="${failure_log}" \
 MONITRA_GATE_PROBE_FAIL_API=1 \
-  "${runner}" >"${test_directory}/failure-output.log" 2>&1
+  "${runner}" --taskfile "${fixture}" >"${test_directory}/failure-output.log" 2>&1
 failure_status=$?
 set -e
 

@@ -1,5 +1,9 @@
 etc/caddy/Caddyfile
 dependencies/apk/chromium
 node_modules/@playwright/test/index.js
+opt/google/chrome/chrome
+srv/__e2e.js
 srv/e2e/startup.spec.ts
+srv/playwright.config.ts
+usr/local/bin/http-server
 usr/bin/vite

@@ -70,6 +70,9 @@ for image in "$@"; do
   file_count="$(awk '!/^dependencies\// { count++ } END { print count + 0 }' "${manifest}")"
   package_count="$(awk 'END { print NR + 0 }' "${packages}")"
   package_list="$(paste -sd, "${packages}")"
+  printf 'PRODUCTION_IMAGE_FILES_BEGIN image=%s files=%s\n' "${image}" "${file_count}"
+  sed '/^dependencies\//d' "${manifest}"
+  printf 'PRODUCTION_IMAGE_FILES_END image=%s files=%s\n' "${image}" "${file_count}"
   printf 'PRODUCTION_IMAGE_INVENTORY image=%s id=%s files=%s apk_packages=%s packages=%s\n' \
     "${image}" "${image_id}" "${file_count}" "${package_count}" "${package_list:-none}"
 done

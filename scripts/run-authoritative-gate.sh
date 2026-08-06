@@ -3,7 +3,14 @@
 set -euo pipefail
 
 repository_root="$(cd "$(dirname "$0")/.." && pwd -P)"
-taskfile="${MONITRA_CHECK_TASKFILE:-${repository_root}/Taskfile.yml}"
+taskfile="${repository_root}/Taskfile.yml"
+
+if (( $# == 2 )) && [[ "$1" == --taskfile ]]; then
+  taskfile=$2
+elif (( $# != 0 )); then
+  printf 'usage: %s [--taskfile <contract-fixture>]\n' "$0" >&2
+  exit 2
+fi
 
 if [[ ! -f "${taskfile}" ]]; then
   printf 'authoritative gate Taskfile does not exist: %s\n' "${taskfile}" >&2

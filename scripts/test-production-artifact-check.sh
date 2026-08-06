@@ -32,7 +32,11 @@ fi
 grep -Fq 'PRODUCTION_ARTIFACT_REJECTED label=contaminated-fixture' "${test_directory}/contaminated.log"
 grep -Fq 'dependencies/apk/chromium' "${test_directory}/contaminated.log"
 grep -Fq 'node_modules/@playwright/test/index.js' "${test_directory}/contaminated.log"
+grep -Fq 'opt/google/chrome/chrome' "${test_directory}/contaminated.log"
+grep -Fq 'srv/__e2e.js' "${test_directory}/contaminated.log"
 grep -Fq 'srv/e2e/startup.spec.ts' "${test_directory}/contaminated.log"
+grep -Fq 'srv/playwright.config.ts' "${test_directory}/contaminated.log"
+grep -Fq 'usr/local/bin/http-server' "${test_directory}/contaminated.log"
 grep -Fq 'usr/bin/vite' "${test_directory}/contaminated.log"
 
 printf 'PRODUCTION_ARTIFACT_FIXTURES_OK rejected_status=%s\n' "${contaminated_status}"
