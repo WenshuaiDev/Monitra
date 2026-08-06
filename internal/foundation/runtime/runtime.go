@@ -22,6 +22,7 @@ const (
 var (
 	ErrManagementListener = errors.New("management listener failed")
 	ErrDependencyStartup  = errors.New("required dependency failed during startup")
+	errRuntimeCanceled    = errors.New("runtime canceled")
 )
 
 type connectionResult struct {
@@ -29,113 +30,164 @@ type connectionResult struct {
 	err  error
 }
 
+// coreRuntime owns the implementation of the core process lifecycle. Its
+// state stays behind Run so callers only need the package's single runtime
+// interface.
+type coreRuntime struct {
+	configuration    config.Configuration
+	logger           *slog.Logger
+	health           *management.State
+	managementServer *management.Server
+	pool             *postgresql.Pool
+}
+
 // Run starts and supervises the Foundation runtime until ctx is cancelled or a
 // required startup dependency fails.
 func Run(ctx context.Context, configuration config.Configuration, logger *slog.Logger) error {
-	health := management.NewState()
-	managementServer, err := management.Start(configuration.ManagementAddress, health, logger)
-	if err != nil {
-		logger.Error("management listener failed", "reason", "bind_failed")
-		return ErrManagementListener
+	core := newCoreRuntime(configuration, logger)
+	if err := core.startManagement(); err != nil {
+		return err
+	}
+	defer core.shutdown()
+
+	if err := core.connectPostgreSQL(ctx); err != nil {
+		if errors.Is(err, errRuntimeCanceled) {
+			return nil
+		}
+		return err
 	}
 
-	logger.Info(
+	core.markReady()
+	return core.supervise(ctx)
+}
+
+func newCoreRuntime(configuration config.Configuration, logger *slog.Logger) *coreRuntime {
+	return &coreRuntime{
+		configuration: configuration,
+		logger:        logger,
+		health:        management.NewState(),
+	}
+}
+
+func (core *coreRuntime) startManagement() error {
+	server, err := management.Start(core.configuration.ManagementAddress, core.health, core.logger)
+	if err != nil {
+		core.logger.Error("management listener failed", "reason", "bind_failed")
+		return ErrManagementListener
+	}
+	core.managementServer = server
+	return nil
+}
+
+func (core *coreRuntime) connectPostgreSQL(ctx context.Context) error {
+	configuration := core.configuration.PostgreSQL
+	core.logger.Info(
 		"waiting for required dependency",
 		"dependency", "postgresql",
-		"startup_timeout", configuration.PostgreSQL.StartupTimeout.String(),
-		"max_connections", configuration.PostgreSQL.MaxConnections,
+		"startup_timeout", configuration.StartupTimeout.String(),
+		"max_connections", configuration.MaxConnections,
 	)
 
-	startupCtx, cancelStartup := context.WithTimeout(ctx, configuration.PostgreSQL.StartupTimeout)
+	startupCtx, cancelStartup := context.WithTimeout(ctx, configuration.StartupTimeout)
 	connection := make(chan connectionResult, 1)
 	go func() {
-		pool, connectErr := postgresql.Connect(startupCtx, configuration.PostgreSQL)
+		pool, connectErr := postgresql.Connect(startupCtx, configuration)
 		connection <- connectionResult{pool: pool, err: connectErr}
 	}()
 
-	var pool *postgresql.Pool
 	select {
 	case result := <-connection:
 		cancelStartup()
 		if result.err != nil {
 			if ctx.Err() != nil {
-				shutdownManagement(managementServer, logger)
-				return nil
+				return errRuntimeCanceled
 			}
-			logger.Error(
+			core.logger.Error(
 				"required dependency startup failed",
 				"dependency", "postgresql",
 				"reason", startupFailureReason(result.err),
 			)
-			shutdownManagement(managementServer, logger)
 			return ErrDependencyStartup
 		}
-		pool = result.pool
+		core.pool = result.pool
+		return nil
 	case <-ctx.Done():
 		cancelStartup()
 		closeConnectionResult(<-connection)
-		shutdownManagement(managementServer, logger)
-		return nil
-	case <-managementServer.Errors():
+		return errRuntimeCanceled
+	case <-core.managementServer.Errors():
 		cancelStartup()
 		closeConnectionResult(<-connection)
-		shutdownManagement(managementServer, logger)
-		logger.Error("management listener failed", "reason", "serve_failed")
+		core.logger.Error("management listener failed", "reason", "serve_failed")
 		return ErrManagementListener
 	}
+}
 
-	logger.Info(
+func (core *coreRuntime) markReady() {
+	core.logger.Info(
 		"postgresql connection pool created",
 		"dependency", "postgresql",
-		"max_connections", configuration.PostgreSQL.MaxConnections,
+		"max_connections", core.configuration.PostgreSQL.MaxConnections,
 	)
-	health.MarkReady()
-	logger.Info("core process ready", "dependency", "postgresql", "release_identity", configuration.ReleaseIdentity)
+	core.health.MarkReady()
+	core.logger.Info(
+		"core process ready",
+		"dependency", "postgresql",
+		"release_identity", core.configuration.ReleaseIdentity,
+	)
+}
 
+func (core *coreRuntime) supervise(ctx context.Context) error {
 	probeTicker := time.NewTicker(dependencyProbeInterval)
 	defer probeTicker.Stop()
 	dependencyAvailable := true
-	var runErr error
-	running := true
-	for running {
+
+	for {
 		select {
 		case <-ctx.Done():
-			running = false
-		case <-managementServer.Errors():
-			logger.Error("management listener failed", "reason", "serve_failed")
-			runErr = ErrManagementListener
-			running = false
+			return nil
+		case <-core.managementServer.Errors():
+			core.logger.Error("management listener failed", "reason", "serve_failed")
+			return ErrManagementListener
 		case <-probeTicker.C:
-			probeCtx, cancelProbe := context.WithTimeout(ctx, dependencyProbeTimeout)
-			available := pool.Available(probeCtx)
-			cancelProbe()
-			if available == dependencyAvailable {
-				continue
-			}
-			dependencyAvailable = available
-			if available {
-				health.MarkReady()
-				logger.Info(
-					"required dependency restored",
-					"dependency", "postgresql",
-					"connection_pool", "existing",
-				)
-				continue
-			}
-			health.MarkNotReady()
-			logger.Warn(
-				"required dependency unavailable",
-				"dependency", "postgresql",
-				"connection_pool", "existing",
-			)
+			dependencyAvailable = core.probePostgreSQL(ctx, dependencyAvailable)
 		}
 	}
+}
 
-	health.MarkNotReady()
-	shutdownManagement(managementServer, logger)
-	pool.Close()
-	logger.Info("core process shutdown complete")
-	return runErr
+func (core *coreRuntime) probePostgreSQL(ctx context.Context, wasAvailable bool) bool {
+	probeCtx, cancelProbe := context.WithTimeout(ctx, dependencyProbeTimeout)
+	available := core.pool.Available(probeCtx)
+	cancelProbe()
+	if available == wasAvailable {
+		return wasAvailable
+	}
+	if available {
+		core.health.MarkReady()
+		core.logger.Info(
+			"required dependency restored",
+			"dependency", "postgresql",
+			"connection_pool", "existing",
+		)
+		return true
+	}
+
+	core.health.MarkNotReady()
+	core.logger.Warn(
+		"required dependency unavailable",
+		"dependency", "postgresql",
+		"connection_pool", "existing",
+	)
+	return false
+}
+
+func (core *coreRuntime) shutdown() {
+	core.health.MarkNotReady()
+	shutdownManagement(core.managementServer, core.logger)
+	if core.pool != nil {
+		core.pool.Close()
+		core.logger.Info("core process shutdown complete")
+	}
 }
 
 func startupFailureReason(err error) string {
