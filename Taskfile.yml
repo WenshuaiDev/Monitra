@@ -18,7 +18,7 @@ tasks:
       - go test -tags=integration ./tests/startup -count=1
 
   check:
-    desc: Run the authoritative checks available in ticket 01
+    desc: Run the authoritative checks available through ticket 02
     cmds:
       - |
         unformatted="$(gofmt -l cmd internal tests)"
@@ -28,6 +28,6 @@ tasks:
       - go test -tags=integration ./tests/startup -count=1
 
   demo:startup:
-    desc: Demonstrate successful and bounded-failure PostgreSQL startup
+    desc: Demonstrate PostgreSQL startup, runtime recovery, and bounded initial failure
     cmds:
       - bash scripts/startup-demo.sh

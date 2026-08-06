@@ -67,6 +67,13 @@ func (pool *Pool) Close() {
 	pool.pool.Close()
 }
 
+// Available reports whether the existing pool can currently complete a
+// database round trip. It never creates a replacement pool or retries a
+// submitted business statement.
+func (pool *Pool) Available(ctx context.Context) bool {
+	return pool.pool.Ping(ctx) == nil
+}
+
 func awaitConnection(ctx context.Context, pool *pgxpool.Pool) error {
 	for {
 		attemptCtx, cancel := context.WithTimeout(ctx, connectionAttemptLimit)

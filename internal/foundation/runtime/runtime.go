@@ -13,7 +13,11 @@ import (
 	"monitra/internal/foundation/postgresql"
 )
 
-const cleanupTimeout = 2 * time.Second
+const (
+	cleanupTimeout          = 2 * time.Second
+	dependencyProbeInterval = 100 * time.Millisecond
+	dependencyProbeTimeout  = 500 * time.Millisecond
+)
 
 var (
 	ErrManagementListener = errors.New("management listener failed")
@@ -80,15 +84,51 @@ func Run(ctx context.Context, configuration config.Configuration, logger *slog.L
 		return ErrManagementListener
 	}
 
+	logger.Info(
+		"postgresql connection pool created",
+		"dependency", "postgresql",
+		"max_connections", configuration.PostgreSQL.MaxConnections,
+	)
 	health.MarkReady()
 	logger.Info("core process ready", "dependency", "postgresql", "release_identity", configuration.ReleaseIdentity)
 
+	probeTicker := time.NewTicker(dependencyProbeInterval)
+	defer probeTicker.Stop()
+	dependencyAvailable := true
 	var runErr error
-	select {
-	case <-ctx.Done():
-	case <-managementServer.Errors():
-		logger.Error("management listener failed", "reason", "serve_failed")
-		runErr = ErrManagementListener
+	running := true
+	for running {
+		select {
+		case <-ctx.Done():
+			running = false
+		case <-managementServer.Errors():
+			logger.Error("management listener failed", "reason", "serve_failed")
+			runErr = ErrManagementListener
+			running = false
+		case <-probeTicker.C:
+			probeCtx, cancelProbe := context.WithTimeout(ctx, dependencyProbeTimeout)
+			available := pool.Available(probeCtx)
+			cancelProbe()
+			if available == dependencyAvailable {
+				continue
+			}
+			dependencyAvailable = available
+			if available {
+				health.MarkReady()
+				logger.Info(
+					"required dependency restored",
+					"dependency", "postgresql",
+					"connection_pool", "existing",
+				)
+				continue
+			}
+			health.MarkNotReady()
+			logger.Warn(
+				"required dependency unavailable",
+				"dependency", "postgresql",
+				"connection_pool", "existing",
+			)
+		}
 	}
 
 	health.MarkNotReady()

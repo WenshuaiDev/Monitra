@@ -21,41 +21,14 @@ import (
 const testSecret = "startup-secret-never-log"
 
 func TestCoreProcessBecomesReadyWithRealPostgreSQL(t *testing.T) {
-	postgresAddress := startPostgreSQL(t)
+	postgres := createPostgreSQL(t)
 	binary := buildCoreProcess(t)
 	managementAddress := unusedAddress(t)
-	process := startCoreProcess(t, binary, managementAddress, postgresAddress, "10s")
+	process := startCoreProcess(t, binary, managementAddress, postgres.address, "10s")
 
-	client := &http.Client{Timeout: 100 * time.Millisecond}
-	sawLive := false
-	sawNotReady := false
-	sawReady := false
-	deadline := time.NewTimer(12 * time.Second)
-	defer deadline.Stop()
-	ticker := time.NewTicker(20 * time.Millisecond)
-	defer ticker.Stop()
-
-observe:
-	for {
-		select {
-		case waitErr := <-process.waited:
-			t.Fatalf("core process exited before becoming ready: %v\n%s", waitErr, process.output.String())
-		case <-deadline.C:
-			t.Fatalf("core process did not become ready with real PostgreSQL:\n%s", process.output.String())
-		case <-ticker.C:
-			sawLive = sawLive || statusCode(client, "http://"+managementAddress+"/livez") == http.StatusOK
-			readyStatus := statusCode(client, "http://"+managementAddress+"/readyz")
-			sawNotReady = sawNotReady || readyStatus == http.StatusServiceUnavailable
-			if readyStatus == http.StatusOK {
-				sawReady = true
-				break observe
-			}
-		}
-	}
-
-	if !sawLive || !sawNotReady || !sawReady {
-		t.Fatalf("startup health observations: live=%t not_ready=%t ready=%t; logs:\n%s", sawLive, sawNotReady, sawReady, process.output.String())
-	}
+	waitForHealthStatus(t, process, managementAddress, http.StatusServiceUnavailable, 3*time.Second)
+	postgres.Start(t)
+	waitForHealthStatus(t, process, managementAddress, http.StatusOK, 12*time.Second)
 	if err := process.command.Process.Signal(syscall.SIGTERM); err != nil {
 		t.Fatalf("signal core process: %v", err)
 	}
@@ -73,6 +46,36 @@ observe:
 	}
 	if !strings.Contains(process.output.String(), `"msg":"core process ready"`) || !strings.Contains(process.output.String(), `"dependency":"postgresql"`) {
 		t.Fatalf("structured logs do not record successful PostgreSQL startup: %s", process.output.String())
+	}
+}
+
+func TestReadyCoreProcessRecoversAfterPostgreSQLRestartWithoutRestarting(t *testing.T) {
+	postgres := createPostgreSQL(t)
+	postgres.Start(t)
+	binary := buildCoreProcess(t)
+	managementAddress := unusedAddress(t)
+	process := startCoreProcess(t, binary, managementAddress, postgres.address, "10s")
+
+	waitForHealthStatus(t, process, managementAddress, http.StatusOK, 12*time.Second)
+	processID := process.command.Process.Pid
+
+	postgres.Stop(t)
+	waitForHealthStatus(t, process, managementAddress, http.StatusServiceUnavailable, 3*time.Second)
+	assertHealthStatusFor(t, process, managementAddress, http.StatusServiceUnavailable, 2*time.Second)
+
+	postgres.Start(t)
+	waitForHealthStatus(t, process, managementAddress, http.StatusOK, 12*time.Second)
+	if process.command.Process.Pid != processID {
+		t.Fatalf("core process PID changed across PostgreSQL restart: before=%d after=%d", processID, process.command.Process.Pid)
+	}
+
+	logs := process.output.String()
+	if strings.Count(logs, `"msg":"postgresql connection pool created"`) != 1 {
+		t.Fatalf("expected exactly one connection pool creation log, got logs:\n%s", logs)
+	}
+	if !strings.Contains(logs, `"msg":"required dependency unavailable"`) ||
+		!strings.Contains(logs, `"msg":"required dependency restored"`) {
+		t.Fatalf("connection pool recovery timeline is absent from logs:\n%s", logs)
 	}
 }
 
@@ -216,11 +219,17 @@ func writeSecret(t *testing.T, secret string) string {
 	return path
 }
 
-func startPostgreSQL(t *testing.T) string {
+type postgresqlContainer struct {
+	id      string
+	address string
+}
+
+func createPostgreSQL(t *testing.T) *postgresqlContainer {
 	t.Helper()
+	address := unusedAddress(t)
 	command := exec.Command(
-		"docker", "run", "--rm", "--detach",
-		"--publish", "127.0.0.1::5432",
+		"docker", "create",
+		"--publish", address+":5432",
 		"--env", "POSTGRES_PASSWORD="+testSecret,
 		"--env", "POSTGRES_USER=monitra",
 		"--env", "POSTGRES_DB=monitra",
@@ -228,25 +237,39 @@ func startPostgreSQL(t *testing.T) string {
 	)
 	output, err := command.CombinedOutput()
 	if err != nil {
-		t.Fatalf("start real PostgreSQL container: %v\n%s", err, output)
+		t.Fatalf("create real PostgreSQL container: %v\n%s", err, output)
 	}
 	containerID := strings.TrimSpace(string(output))
 	if len(containerID) != 64 {
 		t.Fatalf("docker returned an unexpected container ID %q", containerID)
 	}
 	t.Cleanup(func() {
-		stop := exec.Command("docker", "stop", "--time", "2", containerID)
-		if output, err := stop.CombinedOutput(); err != nil {
-			t.Errorf("stop PostgreSQL container %s: %v\n%s", containerID[:12], err, output)
+		remove := exec.Command("docker", "rm", "--force", containerID)
+		if output, err := remove.CombinedOutput(); err != nil {
+			t.Errorf("remove PostgreSQL container %s: %v\n%s", containerID[:12], err, output)
 		}
 	})
 
-	port := exec.Command("docker", "port", containerID, "5432/tcp")
-	portOutput, err := port.CombinedOutput()
-	if err != nil {
-		t.Fatalf("read PostgreSQL published port: %v\n%s", err, portOutput)
+	return &postgresqlContainer{
+		id:      containerID,
+		address: address,
 	}
-	return strings.TrimSpace(string(portOutput))
+}
+
+func (container *postgresqlContainer) Start(t *testing.T) {
+	t.Helper()
+	command := exec.Command("docker", "start", container.id)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("start PostgreSQL container %s: %v\n%s", container.id[:12], err, output)
+	}
+}
+
+func (container *postgresqlContainer) Stop(t *testing.T) {
+	t.Helper()
+	command := exec.Command("docker", "stop", "--time", "2", container.id)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("stop PostgreSQL container %s: %v\n%s", container.id[:12], err, output)
+	}
 }
 
 func processEnvironment(values map[string]string) []string {
@@ -269,4 +292,51 @@ func statusCode(client *http.Client, url string) int {
 	}
 	defer response.Body.Close()
 	return response.StatusCode
+}
+
+func waitForHealthStatus(t *testing.T, process *coreProcess, managementAddress string, readyStatus int, timeout time.Duration) {
+	t.Helper()
+	client := &http.Client{Timeout: 100 * time.Millisecond}
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case waitErr := <-process.waited:
+			t.Fatalf("core process exited while waiting for readiness status %d: %v\n%s", readyStatus, waitErr, process.output.String())
+		case <-deadline.C:
+			t.Fatalf("health did not reach live=200 ready=%d within %s:\n%s", readyStatus, timeout, process.output.String())
+		case <-ticker.C:
+			if statusCode(client, "http://"+managementAddress+"/livez") == http.StatusOK &&
+				statusCode(client, "http://"+managementAddress+"/readyz") == readyStatus {
+				return
+			}
+		}
+	}
+}
+
+func assertHealthStatusFor(t *testing.T, process *coreProcess, managementAddress string, readyStatus int, duration time.Duration) {
+	t.Helper()
+	client := &http.Client{Timeout: 100 * time.Millisecond}
+	deadline := time.NewTimer(duration)
+	defer deadline.Stop()
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case waitErr := <-process.waited:
+			t.Fatalf("core process exited while PostgreSQL remained unavailable: %v\n%s", waitErr, process.output.String())
+		case <-deadline.C:
+			return
+		case <-ticker.C:
+			liveStatus := statusCode(client, "http://"+managementAddress+"/livez")
+			gotReadyStatus := statusCode(client, "http://"+managementAddress+"/readyz")
+			if liveStatus != http.StatusOK || gotReadyStatus != readyStatus {
+				t.Fatalf("health changed while PostgreSQL remained unavailable: live=%d ready=%d", liveStatus, gotReadyStatus)
+			}
+		}
+	}
 }
