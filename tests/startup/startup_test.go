@@ -4,6 +4,7 @@ package startup_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -30,6 +31,7 @@ func TestCoreProcessBecomesReadyWithRealPostgreSQL(t *testing.T) {
 	waitForHealthStatus(t, process, managementAddress, http.StatusServiceUnavailable, 3*time.Second)
 	postgres.Start(t)
 	waitForHealthStatus(t, process, managementAddress, http.StatusOK, 12*time.Second)
+	requestID := assertStartupHandshake(t, process)
 	if err := process.command.Process.Signal(syscall.SIGTERM); err != nil {
 		t.Fatalf("signal core process: %v", err)
 	}
@@ -47,6 +49,9 @@ func TestCoreProcessBecomesReadyWithRealPostgreSQL(t *testing.T) {
 	}
 	if !strings.Contains(process.output.String(), `"msg":"core process ready"`) || !strings.Contains(process.output.String(), `"dependency":"postgresql"`) {
 		t.Fatalf("structured logs do not record successful PostgreSQL startup: %s", process.output.String())
+	}
+	if !strings.Contains(process.output.String(), `"request_id":"`+requestID+`"`) {
+		t.Fatalf("structured logs do not correlate the startup handshake %q: %s", requestID, process.output.String())
 	}
 }
 
@@ -135,10 +140,11 @@ observe:
 }
 
 type coreProcess struct {
-	command *exec.Cmd
-	output  synchronizedBuffer
-	waited  chan error
-	done    chan struct{}
+	command            *exec.Cmd
+	applicationAddress string
+	output             synchronizedBuffer
+	waited             chan error
+	done               chan struct{}
 }
 
 type synchronizedBuffer struct {
@@ -165,12 +171,14 @@ func startCoreProcess(t *testing.T, binary, managementAddress, postgresAddress, 
 		t.Fatalf("split PostgreSQL address: %v", err)
 	}
 	process := &coreProcess{
-		command: exec.Command(binary),
-		waited:  make(chan error, 1),
-		done:    make(chan struct{}),
+		command:            exec.Command(binary),
+		applicationAddress: unusedAddress(t),
+		waited:             make(chan error, 1),
+		done:               make(chan struct{}),
 	}
 	process.command.Env = processEnvironment(map[string]string{
 		"MONITRA_RELEASE_IDENTITY":         "integration-test",
+		"MONITRA_APPLICATION_ADDRESS":      process.applicationAddress,
 		"MONITRA_MANAGEMENT_ADDRESS":       managementAddress,
 		"MONITRA_POSTGRES_HOST":            postgresHost,
 		"MONITRA_POSTGRES_PORT":            postgresPort,
@@ -200,6 +208,37 @@ func startCoreProcess(t *testing.T, binary, managementAddress, postgresAddress, 
 		}
 	})
 	return process
+}
+
+func assertStartupHandshake(t *testing.T, process *coreProcess) string {
+	t.Helper()
+	request, err := http.NewRequest(http.MethodGet, "http://"+process.applicationAddress+"/api/v1/startup-handshake", nil)
+	if err != nil {
+		t.Fatalf("create startup handshake request: %v", err)
+	}
+	request.Header.Set("X-Request-ID", "client-selected-id")
+	response, err := (&http.Client{Timeout: time.Second}).Do(request)
+	if err != nil {
+		t.Fatalf("call startup handshake: %v\n%s", err, process.output.String())
+	}
+	defer response.Body.Close()
+	var body struct {
+		Data struct {
+			ReleaseIdentity string `json:"release_identity"`
+			APIMajor        int    `json:"api_major"`
+		} `json:"data"`
+		RequestID string `json:"request_id"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatalf("decode startup handshake: %v", err)
+	}
+	if response.StatusCode != http.StatusOK || body.Data.ReleaseIdentity != "integration-test" || body.Data.APIMajor != 1 {
+		t.Fatalf("startup handshake status/data = %d/%+v", response.StatusCode, body.Data)
+	}
+	if body.RequestID == "" || body.RequestID == "client-selected-id" || body.RequestID != response.Header.Get("X-Request-ID") {
+		t.Fatalf("startup handshake request IDs: body=%q header=%q", body.RequestID, response.Header.Get("X-Request-ID"))
+	}
+	return body.RequestID
 }
 
 func buildCoreProcess(t *testing.T) string {

@@ -8,7 +8,9 @@ import (
 	"log/slog"
 	"time"
 
+	"monitra/internal/foundation/application"
 	"monitra/internal/foundation/config"
+	"monitra/internal/foundation/httpserver"
 	"monitra/internal/foundation/management"
 	"monitra/internal/foundation/postgresql"
 )
@@ -20,9 +22,10 @@ const (
 )
 
 var (
-	ErrManagementListener = errors.New("management listener failed")
-	ErrDependencyStartup  = errors.New("required dependency failed during startup")
-	errRuntimeCanceled    = errors.New("runtime canceled")
+	ErrApplicationListener = errors.New("application listener failed")
+	ErrManagementListener  = errors.New("management listener failed")
+	ErrDependencyStartup   = errors.New("required dependency failed during startup")
+	errRuntimeCanceled     = errors.New("runtime canceled")
 )
 
 type connectionResult struct {
@@ -34,11 +37,12 @@ type connectionResult struct {
 // state stays behind Run so callers only need the package's single runtime
 // interface.
 type coreRuntime struct {
-	configuration    config.Configuration
-	logger           *slog.Logger
-	health           *management.State
-	managementServer *management.Server
-	pool             *postgresql.Pool
+	configuration     config.Configuration
+	logger            *slog.Logger
+	health            *management.State
+	applicationServer *application.Server
+	managementServer  *management.Server
+	pool              *postgresql.Pool
 }
 
 // Run starts and supervises the Foundation runtime until ctx is cancelled or a
@@ -56,9 +60,26 @@ func Run(ctx context.Context, configuration config.Configuration, logger *slog.L
 		}
 		return err
 	}
+	if err := core.startApplication(); err != nil {
+		return err
+	}
 
 	core.markReady()
 	return core.supervise(ctx)
+}
+
+func (core *coreRuntime) startApplication() error {
+	server, err := application.Start(
+		core.configuration.ApplicationAddress,
+		core.configuration.ReleaseIdentity,
+		core.logger,
+	)
+	if err != nil {
+		core.logger.Error("application listener failed", "reason", "bind_failed")
+		return ErrApplicationListener
+	}
+	core.applicationServer = server
+	return nil
 }
 
 func newCoreRuntime(configuration config.Configuration, logger *slog.Logger) *coreRuntime {
@@ -149,6 +170,9 @@ func (core *coreRuntime) supervise(ctx context.Context) error {
 		case <-core.managementServer.Errors():
 			core.logger.Error("management listener failed", "reason", "serve_failed")
 			return ErrManagementListener
+		case <-core.applicationServer.Errors():
+			core.logger.Error("application listener failed", "reason", "serve_failed")
+			return ErrApplicationListener
 		case <-probeTicker.C:
 			dependencyAvailable = core.probePostgreSQL(ctx, dependencyAvailable)
 		}
@@ -183,10 +207,21 @@ func (core *coreRuntime) probePostgreSQL(ctx context.Context, wasAvailable bool)
 
 func (core *coreRuntime) shutdown() {
 	core.health.MarkNotReady()
-	shutdownManagement(core.managementServer, core.logger)
+	if core.applicationServer != nil {
+		shutdownListener(core.applicationServer, "application", core.logger)
+	}
+	shutdownListener(core.managementServer, "management", core.logger)
 	if core.pool != nil {
 		core.pool.Close()
 		core.logger.Info("core process shutdown complete")
+	}
+}
+
+func shutdownListener(server *httpserver.Server, listener string, logger *slog.Logger) {
+	ctx, cancel := context.WithTimeout(context.Background(), cleanupTimeout)
+	defer cancel()
+	if err := server.Shutdown(ctx); err != nil {
+		logger.Error(listener+" listener cleanup failed", "reason", "shutdown_timeout")
 	}
 }
 
@@ -204,13 +239,5 @@ func startupFailureReason(err error) string {
 func closeConnectionResult(result connectionResult) {
 	if result.pool != nil {
 		result.pool.Close()
-	}
-}
-
-func shutdownManagement(server *management.Server, logger *slog.Logger) {
-	ctx, cancel := context.WithTimeout(context.Background(), cleanupTimeout)
-	defer cancel()
-	if err := server.Shutdown(ctx); err != nil {
-		logger.Error("management listener cleanup failed", "reason", "shutdown_timeout")
 	}
 }

@@ -16,6 +16,7 @@ func TestLoadReturnsTypedStartupConfigurationWithSecretFileReference(t *testing.
 	}
 
 	t.Setenv("MONITRA_RELEASE_IDENTITY", "2026.08.06-test")
+	t.Setenv("MONITRA_APPLICATION_ADDRESS", "127.0.0.1:18080")
 	t.Setenv("MONITRA_MANAGEMENT_ADDRESS", "127.0.0.1:19090")
 	t.Setenv("MONITRA_POSTGRES_HOST", "127.0.0.1")
 	t.Setenv("MONITRA_POSTGRES_PORT", "55432")
@@ -33,6 +34,9 @@ func TestLoadReturnsTypedStartupConfigurationWithSecretFileReference(t *testing.
 
 	if got.ReleaseIdentity != "2026.08.06-test" {
 		t.Fatalf("release identity = %q", got.ReleaseIdentity)
+	}
+	if got.ApplicationAddress != "127.0.0.1:18080" {
+		t.Fatalf("application address = %q", got.ApplicationAddress)
 	}
 	if got.ManagementAddress != "127.0.0.1:19090" {
 		t.Fatalf("management address = %q", got.ManagementAddress)

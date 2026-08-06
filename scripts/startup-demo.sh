@@ -24,11 +24,12 @@ trap cleanup EXIT
 
 wait_for_log_field() {
   local log_file="$1"
-  local field="$2"
+  local message="$2"
+  local field="$3"
   local deadline=$((SECONDS + 5))
   local value=""
   while (( SECONDS < deadline )); do
-    value="$(sed -n "s/.*\"${field}\":\"\([^\"]*\)\".*/\1/p" "${log_file}" | head -n 1)"
+    value="$({ grep -F "\"msg\":\"${message}\"" "${log_file}" || true; } | sed -n "s/.*\"${field}\":\"\([^\"]*\)\".*/\1/p" | head -n 1)"
     if [[ -n "${value}" ]]; then
       printf '%s\n' "${value}"
       return 0
@@ -85,6 +86,7 @@ postgres_host="${postgres_address%:*}"
 
 printf '%s\n' 'SUCCESS PATH'
 MONITRA_RELEASE_IDENTITY=demo \
+MONITRA_APPLICATION_ADDRESS=127.0.0.1:0 \
 MONITRA_MANAGEMENT_ADDRESS=127.0.0.1:0 \
 MONITRA_POSTGRES_HOST="${postgres_host}" \
 MONITRA_POSTGRES_PORT="${postgres_port}" \
@@ -96,13 +98,31 @@ MONITRA_POSTGRES_MAX_CONNECTIONS=2 \
 MONITRA_POSTGRES_STARTUP_TIMEOUT=10s \
   "${demo_directory}/monitra" >"${demo_directory}/success.log" 2>&1 &
 core_pid=$!
-management_address="$(wait_for_log_field "${demo_directory}/success.log" address)"
+management_address="$(wait_for_log_field "${demo_directory}/success.log" "management listener started" address)"
 printf 'liveness: '
 curl --fail --silent --show-error "http://${management_address}/livez"
 printf 'readiness while PostgreSQL initializes: '
 curl --silent --show-error "http://${management_address}/readyz"
 printf 'readiness after PostgreSQL connects: '
 wait_for_ready "${management_address}"
+application_address="$(wait_for_log_field "${demo_directory}/success.log" "application listener started" address)"
+curl --fail --silent --show-error \
+  --header 'X-Request-ID: client-selected-id' \
+  --dump-header "${demo_directory}/handshake.headers" \
+  --output "${demo_directory}/handshake.json" \
+  "http://${application_address}/api/v1/startup-handshake"
+request_id="$(sed -n 's/^[Xx]-[Rr]equest-[Ii][Dd]:[[:space:]]*//p' "${demo_directory}/handshake.headers" | tr -d '\r' | head -n 1)"
+body_request_id="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["request_id"])' "${demo_directory}/handshake.json")"
+if [[ -z "${request_id}" || "${request_id}" == "client-selected-id" || "${body_request_id}" != "${request_id}" ]]; then
+  printf 'startup handshake request ID mismatch: header=%s body=%s\n' "${request_id}" "${body_request_id}" >&2
+  exit 1
+fi
+printf '%s\n' 'startup handshake response headers:'
+sed -n '/^[Xx]-[Rr]equest-[Ii][Dd]:/p' "${demo_directory}/handshake.headers"
+printf '%s\n' 'startup handshake response body:'
+cat "${demo_directory}/handshake.json"
+printf '%s\n' 'corresponding structured request log:'
+grep -F "\"request_id\":\"${request_id}\"" "${demo_directory}/success.log"
 original_core_pid="${core_pid}"
 
 printf '%s\n' 'RUNTIME RECOVERY PATH'
@@ -152,6 +172,7 @@ docker stop --time 2 "${postgres_container}" >/dev/null
 
 printf '%s\n' 'FAILURE PATH'
 MONITRA_RELEASE_IDENTITY=demo \
+MONITRA_APPLICATION_ADDRESS=127.0.0.1:0 \
 MONITRA_MANAGEMENT_ADDRESS=127.0.0.1:0 \
 MONITRA_POSTGRES_HOST="${postgres_host}" \
 MONITRA_POSTGRES_PORT="${postgres_port}" \
@@ -163,7 +184,7 @@ MONITRA_POSTGRES_MAX_CONNECTIONS=2 \
 MONITRA_POSTGRES_STARTUP_TIMEOUT=900ms \
   "${demo_directory}/monitra" >"${demo_directory}/failure.log" 2>&1 &
 core_pid=$!
-management_address="$(wait_for_log_field "${demo_directory}/failure.log" address)"
+management_address="$(wait_for_log_field "${demo_directory}/failure.log" "management listener started" address)"
 printf 'liveness: '
 curl --fail --silent --show-error "http://${management_address}/livez"
 printf 'readiness: '

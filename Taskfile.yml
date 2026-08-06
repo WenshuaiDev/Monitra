@@ -12,22 +12,40 @@ tasks:
     cmds:
       - go test ./...
 
+  test:web:
+    desc: Run TypeScript transport tests
+    cmds:
+      - pnpm test:web
+
+  api:generate:
+    desc: Generate TypeScript transport types and client from OpenAPI
+    cmds:
+      - pnpm api:generate
+
+  api:check:
+    desc: Validate OpenAPI and reject generated TypeScript drift
+    cmds:
+      - bash scripts/check-generated-api.sh
+
   test:integration:
     desc: Run real PostgreSQL and subprocess startup tests
     cmds:
       - go test -tags=integration ./tests/startup -count=1
 
   check:
-    desc: Run the authoritative checks available through ticket 02
+    desc: Run the authoritative checks available through ticket 03
     cmds:
       - |
         unformatted="$(gofmt -l cmd internal tests)"
         test -z "$unformatted"
       - go vet -tags=integration ./...
       - go test ./...
+      - task: api:check
+      - pnpm typecheck
+      - pnpm test:web
       - go test -tags=integration ./tests/startup -count=1
 
   demo:startup:
-    desc: Demonstrate PostgreSQL startup, runtime recovery, and bounded initial failure
+    desc: Demonstrate the typed handshake, PostgreSQL recovery, and bounded initial failure
     cmds:
       - bash scripts/startup-demo.sh

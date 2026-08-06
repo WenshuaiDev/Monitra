@@ -11,6 +11,7 @@ import (
 )
 
 const (
+	defaultApplicationAddress = "127.0.0.1:8080"
 	defaultManagementAddress  = "127.0.0.1:9090"
 	defaultPostgreSQLHost     = "127.0.0.1"
 	defaultPostgreSQLPort     = 5432
@@ -23,9 +24,10 @@ const (
 
 // Configuration contains the minimum typed inputs needed to start the core process.
 type Configuration struct {
-	ReleaseIdentity   string
-	ManagementAddress string
-	PostgreSQL        PostgreSQL
+	ReleaseIdentity    string
+	ApplicationAddress string
+	ManagementAddress  string
+	PostgreSQL         PostgreSQL
 }
 
 // PostgreSQL describes the single bounded connection pool owned by Foundation.
@@ -47,6 +49,11 @@ func Load() (Configuration, error) {
 	releaseIdentity, err := required("MONITRA_RELEASE_IDENTITY")
 	if err != nil {
 		return Configuration{}, err
+	}
+
+	applicationAddress := valueOrDefault("MONITRA_APPLICATION_ADDRESS", defaultApplicationAddress)
+	if _, _, err := net.SplitHostPort(applicationAddress); err != nil {
+		return Configuration{}, errors.New("MONITRA_APPLICATION_ADDRESS must be a host:port address")
 	}
 
 	managementAddress := valueOrDefault("MONITRA_MANAGEMENT_ADDRESS", defaultManagementAddress)
@@ -81,8 +88,9 @@ func Load() (Configuration, error) {
 	}
 
 	return Configuration{
-		ReleaseIdentity:   releaseIdentity,
-		ManagementAddress: managementAddress,
+		ReleaseIdentity:    releaseIdentity,
+		ApplicationAddress: applicationAddress,
+		ManagementAddress:  managementAddress,
 		PostgreSQL: PostgreSQL{
 			Host:           valueOrDefault("MONITRA_POSTGRES_HOST", defaultPostgreSQLHost),
 			Port:           uint16(port),

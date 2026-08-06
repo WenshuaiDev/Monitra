@@ -1,0 +1,103 @@
+openapi: 3.1.0
+info:
+  title: Monitra HTTP API
+  version: 1.0.0
+  description: Versioned browser-facing transport contract for the Monitra core process.
+paths:
+  /api/v1/startup-handshake:
+    get:
+      operationId: getStartupHandshake
+      summary: Read the running release and API compatibility identity
+      responses:
+        "200":
+          description: The core process is available for a compatible browser bootstrap.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestID"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StartupHandshakeResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+components:
+  headers:
+    RequestID:
+      description: Cryptographically safe server-generated correlation identity.
+      required: true
+      schema:
+        $ref: "#/components/schemas/RequestID"
+  responses:
+    NotFound:
+      description: The requested application resource does not exist.
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    MethodNotAllowed:
+      description: The requested method is not supported by this route.
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/RequestID"
+        Allow:
+          description: Methods supported by this route.
+          required: true
+          schema:
+            type: string
+            enum: [GET]
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    RequestID:
+      type: string
+      minLength: 26
+      pattern: "^[A-Z2-7]+$"
+    StartupHandshakeResponse:
+      type: object
+      additionalProperties: false
+      required: [code, message, data, request_id]
+      properties:
+        code:
+          type: string
+          enum: [FOUNDATION_STARTUP_READY]
+        message:
+          type: string
+          enum: [startup handshake succeeded]
+        data:
+          $ref: "#/components/schemas/StartupHandshakeData"
+        request_id:
+          $ref: "#/components/schemas/RequestID"
+    StartupHandshakeData:
+      type: object
+      additionalProperties: false
+      required: [release_identity, api_major]
+      properties:
+        release_identity:
+          type: string
+          minLength: 1
+        api_major:
+          type: integer
+          format: int32
+          enum: [1]
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [code, message, data, request_id]
+      properties:
+        code:
+          type: string
+          enum: [FOUNDATION_NOT_FOUND, FOUNDATION_METHOD_NOT_ALLOWED]
+        message:
+          type: string
+          enum: [resource not found, method not allowed]
+        data:
+          type: "null"
+        request_id:
+          $ref: "#/components/schemas/RequestID"
