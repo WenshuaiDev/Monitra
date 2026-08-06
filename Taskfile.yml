@@ -74,20 +74,45 @@ tasks:
     cmds:
       - go test -tags=integration ./tests/startup -count=1
 
-  check:
-    desc: Run the authoritative checks available through ticket 05
+  check:format:
+    desc: Reject unformatted Go production and test source
     cmds:
       - |
         unformatted="$(gofmt -l cmd internal tests)"
         test -z "$unformatted"
+
+  test:authoritative-gate:
+    desc: Prove the authoritative runner executes every step and propagates failures
+    cmds:
+      - bash scripts/test-authoritative-gate.sh
+
+  check:go:
+    desc: Run Go static analysis and tests
+    cmds:
       - go vet -tags=integration ./...
       - go test ./...
-      - task: api:check
+
+  check:web:
+    desc: Typecheck, test, and production-build the browser application
+    cmds:
       - pnpm typecheck
       - pnpm test:web
       - pnpm web:build
-      - go test -tags=integration ./tests/startup -count=1
-      - task: test:production
+
+  test:production:artifact-fixtures:
+    desc: Prove the production artifact checker rejects contaminated fixtures
+    cmds:
+      - bash scripts/test-production-artifact-check.sh
+
+  test:production:artifacts:
+    desc: Inspect the production images built by the browser acceptance
+    cmds:
+      - bash scripts/check-production-images.sh monitra-core:ticket06-test monitra-web:ticket06-test
+
+  check:
+    desc: Run the sole authoritative local and CI quality gate
+    cmds:
+      - bash scripts/run-authoritative-gate.sh
 
   demo:startup:
     desc: Demonstrate the typed handshake, PostgreSQL recovery, and bounded initial failure

@@ -1,0 +1,5 @@
+etc/caddy/Caddyfile
+dependencies/apk/chromium
+node_modules/@playwright/test/index.js
+srv/e2e/startup.spec.ts
+usr/bin/vite

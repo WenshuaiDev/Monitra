@@ -1,0 +1,6 @@
+etc/caddy/Caddyfile
+lib/apk/db/installed
+srv/assets/index-01234567.js
+srv/index.html
+usr/bin/caddy
+usr/bin/test

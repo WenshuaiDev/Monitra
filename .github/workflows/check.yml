@@ -1,0 +1,44 @@
+name: Authoritative check
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.18.0
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install locked frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install pinned Task
+        run: |
+          mkdir -p "$RUNNER_TEMP/task-bin"
+          GOBIN="$RUNNER_TEMP/task-bin" go install github.com/go-task/task/v3/cmd/task@v3.50.0
+          echo "$RUNNER_TEMP/task-bin" >> "$GITHUB_PATH"
+
+      - name: Run the local authoritative gate
+        run: task check

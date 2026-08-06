@@ -1,0 +1,47 @@
+version: "3"
+
+tasks:
+  check:format:
+    cmds:
+      - printf '%s\n' 'check:format' >> "$MONITRA_GATE_PROBE_LOG"
+
+  test:authoritative-gate:
+    cmds:
+      - printf '%s\n' 'test:authoritative-gate' >> "$MONITRA_GATE_PROBE_LOG"
+
+  check:go:
+    cmds:
+      - printf '%s\n' 'check:go' >> "$MONITRA_GATE_PROBE_LOG"
+
+  api:check:
+    cmds:
+      - printf '%s\n' 'api:check' >> "$MONITRA_GATE_PROBE_LOG"
+      - test "${MONITRA_GATE_PROBE_FAIL_API:-0}" = 0
+
+  check:web:
+    cmds:
+      - printf '%s\n' 'check:web' >> "$MONITRA_GATE_PROBE_LOG"
+
+  test:integration:
+    cmds:
+      - printf '%s\n' 'test:integration' >> "$MONITRA_GATE_PROBE_LOG"
+
+  test:production:
+    cmds:
+      - printf '%s\n' 'test:production' >> "$MONITRA_GATE_PROBE_LOG"
+
+  test:e2e:
+    cmds:
+      - printf '%s\n' 'test:e2e' >> "$MONITRA_GATE_PROBE_LOG"
+
+  test:production:database-lifecycle:
+    cmds:
+      - printf '%s\n' 'test:production:database-lifecycle' >> "$MONITRA_GATE_PROBE_LOG"
+
+  test:production:artifact-fixtures:
+    cmds:
+      - printf '%s\n' 'test:production:artifact-fixtures' >> "$MONITRA_GATE_PROBE_LOG"
+
+  test:production:artifacts:
+    cmds:
+      - printf '%s\n' 'test:production:artifacts' >> "$MONITRA_GATE_PROBE_LOG"

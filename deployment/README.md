@@ -40,3 +40,33 @@ runtime config, unavailable core, API-major mismatch, and Release Identity
 mismatch. Each scenario adds a browser screenshot, Compose state, and timestamped
 service logs to `playwright-report/index.html`. The isolated Compose project and
 its volumes are removed whether the suite passes or fails.
+
+## Authoritative quality gate
+
+`task check` is the sole complete acceptance entry point for this frontier. It
+runs formatting, Go analysis and tests, OpenAPI generation drift detection,
+TypeScript checks and Web tests, the production Web build, real PostgreSQL
+integration, production-stack checks, Playwright browser acceptance, the
+production database lifecycle, and production-image purity inspection.
+
+Run it from the repository root after installing the locked dependencies:
+
+```sh
+pnpm install --frozen-lockfile
+task check
+```
+
+The runner stops at the first failed child gate and returns that failure to the
+caller. Its contract test uses an independent Task fixture to prove both the
+complete ordered step list and nonzero propagation.
+
+The final image inspection exports the filesystems of
+`monitra-core:ticket06-test` and `monitra-web:ticket06-test`, reports their image
+IDs, file counts, and installed Alpine packages, then rejects Playwright,
+browser runtimes, E2E/test source, test controls, Node package trees, and
+development servers. A checked-in contaminated manifest proves that the same
+checker rejects forbidden files and dependencies independently of the real
+images.
+
+GitHub Actions performs tool and dependency setup, then invokes the same
+`task check`; it does not maintain a second acceptance command list.
