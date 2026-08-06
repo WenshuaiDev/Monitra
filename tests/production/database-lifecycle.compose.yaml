@@ -1,0 +1,4 @@
+services:
+  core:
+    environment:
+      MONITRA_POSTGRES_STARTUP_TIMEOUT: 2s

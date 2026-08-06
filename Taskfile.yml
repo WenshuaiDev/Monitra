@@ -48,6 +48,11 @@ tasks:
     cmds:
       - sh scripts/test-production-stack.sh
 
+  test:production:database-lifecycle:
+    desc: Verify production PostgreSQL startup failure and runtime recovery
+    cmds:
+      - bash scripts/test-production-database-lifecycle.sh
+
   test:e2e:
     desc: Verify browser startup behavior against an isolated production stack
     cmds:
