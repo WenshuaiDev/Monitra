@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -euo pipefail
+shopt -s nocasematch
 
 if (( $# != 2 )); then
   printf 'usage: %s <filesystem-manifest> <label>\n' "$0" >&2
@@ -29,6 +30,23 @@ while IFS= read -r artifact_path || [[ -n "${artifact_path}" ]]; do
   entries=$((entries + 1))
   reason=
 
+  case "${artifact_path}" in
+    *playwright*)
+      reason=test-dependency
+      ;;
+    *chromium* | *chrome* | *firefox* | *webkit* | *browser-binary*)
+      reason=browser-runtime
+      ;;
+    *e2e*)
+      reason=test-control
+      ;;
+    *test*)
+      if [[ "${artifact_path}" != usr/bin/test ]]; then
+        reason=test-source-or-control
+      fi
+      ;;
+  esac
+
   artifact_directory=${artifact_path%/*}
   if [[ "${artifact_directory}" == "${artifact_path}" ]]; then
     artifact_directory=
@@ -52,6 +70,9 @@ while IFS= read -r artifact_path || [[ -n "${artifact_path}" ]]; do
       ;;
     playwright.config | playwright.config.* | *__e2e*)
       reason=${reason:-test-control}
+      ;;
+    serve | http-server | *dev-server* | vite* | webpack* | parcel | react-scripts | next)
+      reason=${reason:-development-server}
       ;;
   esac
 
