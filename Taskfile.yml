@@ -1,0 +1,33 @@
+version: "3"
+
+tasks:
+  build:
+    desc: Build the production core process
+    cmds:
+      - mkdir -p bin
+      - go build -o bin/monitra ./cmd/monitra
+
+  test:
+    desc: Run fast Go tests
+    cmds:
+      - go test ./...
+
+  test:integration:
+    desc: Run real PostgreSQL and subprocess startup tests
+    cmds:
+      - go test -tags=integration ./tests/startup -count=1
+
+  check:
+    desc: Run the authoritative checks available in ticket 01
+    cmds:
+      - |
+        unformatted="$(gofmt -l cmd internal tests)"
+        test -z "$unformatted"
+      - go vet -tags=integration ./...
+      - go test ./...
+      - go test -tags=integration ./tests/startup -count=1
+
+  demo:startup:
+    desc: Demonstrate successful and bounded-failure PostgreSQL startup
+    cmds:
+      - bash scripts/startup-demo.sh
