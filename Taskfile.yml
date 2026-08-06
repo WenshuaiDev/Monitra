@@ -22,6 +22,32 @@ tasks:
     cmds:
       - pnpm web:build
 
+  production:build:
+    desc: Build the production core and Caddy images
+    cmds:
+      - docker compose --env-file "${MONITRA_PRODUCTION_ENV_FILE:-deployment/production.env}" --file compose.production.yaml build
+
+  production:up:
+    desc: Start the production PostgreSQL, core, and Caddy stack
+    cmds:
+      - docker compose --env-file "${MONITRA_PRODUCTION_ENV_FILE:-deployment/production.env}" --file compose.production.yaml up --detach --build --wait --wait-timeout 90
+
+  production:down:
+    desc: Stop the production stack while preserving deployment data
+    cmds:
+      - docker compose --env-file "${MONITRA_PRODUCTION_ENV_FILE:-deployment/production.env}" --file compose.production.yaml down
+
+  production:diagnose:
+    desc: Show production service state and recent logs
+    cmds:
+      - docker compose --env-file "${MONITRA_PRODUCTION_ENV_FILE:-deployment/production.env}" --file compose.production.yaml ps --all
+      - docker compose --env-file "${MONITRA_PRODUCTION_ENV_FILE:-deployment/production.env}" --file compose.production.yaml logs --timestamps --tail 100
+
+  test:production:
+    desc: Build and verify the production startup loop in an isolated stack
+    cmds:
+      - sh scripts/test-production-stack.sh
+
   api:generate:
     desc: Generate TypeScript transport types and client from OpenAPI
     cmds:
@@ -38,7 +64,7 @@ tasks:
       - go test -tags=integration ./tests/startup -count=1
 
   check:
-    desc: Run the authoritative checks available through ticket 04
+    desc: Run the authoritative checks available through ticket 05
     cmds:
       - |
         unformatted="$(gofmt -l cmd internal tests)"
@@ -50,6 +76,7 @@ tasks:
       - pnpm test:web
       - pnpm web:build
       - go test -tags=integration ./tests/startup -count=1
+      - task: test:production
 
   demo:startup:
     desc: Demonstrate the typed handshake, PostgreSQL recovery, and bounded initial failure

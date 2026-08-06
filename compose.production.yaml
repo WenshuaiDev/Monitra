@@ -1,0 +1,117 @@
+services:
+  postgresql:
+    image: postgres:18.4-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15
+    environment:
+      POSTGRES_DB: ${MONITRA_POSTGRES_DATABASE:-monitra}
+      POSTGRES_USER: ${MONITRA_POSTGRES_USER:-monitra}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgresql_password
+    secrets:
+      - postgresql_password
+    volumes:
+      - postgresql-data:/var/lib/postgresql
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev
+      - /run/postgresql:rw,noexec,nosuid,nodev,uid=70,gid=70,mode=3777
+    user: "70:70"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready --host 127.0.0.1 --username $$POSTGRES_USER --dbname $$POSTGRES_DB"]
+      start_period: 30s
+      start_interval: 1s
+      interval: 30s
+      timeout: 2s
+      retries: 10
+
+  runtime-config:
+    image: monitra-core:${MONITRA_RELEASE_IDENTITY:?MONITRA_RELEASE_IDENTITY is required}
+    command: ["project-runtime-config", "--output", "/runtime-config/runtime-config.json"]
+    environment:
+      MONITRA_RELEASE_IDENTITY: ${MONITRA_RELEASE_IDENTITY:?MONITRA_RELEASE_IDENTITY is required}
+    volumes:
+      - runtime-config:/runtime-config
+    read_only: true
+    user: "10001:10001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: "no"
+
+  core:
+    build:
+      context: .
+      dockerfile: build/core.Dockerfile
+    image: monitra-core:${MONITRA_RELEASE_IDENTITY:?MONITRA_RELEASE_IDENTITY is required}
+    environment:
+      MONITRA_RELEASE_IDENTITY: ${MONITRA_RELEASE_IDENTITY:?MONITRA_RELEASE_IDENTITY is required}
+      MONITRA_APPLICATION_ADDRESS: 0.0.0.0:8080
+      MONITRA_MANAGEMENT_ADDRESS: 0.0.0.0:9090
+      MONITRA_POSTGRES_HOST: postgresql
+      MONITRA_POSTGRES_DATABASE: ${MONITRA_POSTGRES_DATABASE:-monitra}
+      MONITRA_POSTGRES_USER: ${MONITRA_POSTGRES_USER:-monitra}
+      MONITRA_POSTGRES_PASSWORD_FILE: /run/secrets/postgresql_password
+      MONITRA_POSTGRES_SSL_MODE: disable
+      MONITRA_POSTGRES_MAX_CONNECTIONS: 4
+      MONITRA_POSTGRES_STARTUP_TIMEOUT: 15s
+    secrets:
+      - postgresql_password
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,uid=10001,gid=10001
+    user: "10001:10001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/monitra", "check-readiness"]
+      start_period: 30s
+      start_interval: 1s
+      interval: 30s
+      timeout: 3s
+      retries: 10
+
+  caddy:
+    build:
+      context: .
+      dockerfile: build/web.Dockerfile
+    image: monitra-web:${MONITRA_RELEASE_IDENTITY:?MONITRA_RELEASE_IDENTITY is required}
+    depends_on:
+      runtime-config:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${MONITRA_WEB_PORT:-8080}:8080"
+    volumes:
+      - runtime-config:/runtime-config:ro
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,uid=10001,gid=10001
+      - /config:rw,noexec,nosuid,nodev,uid=10001,gid=10001
+      - /data:rw,noexec,nosuid,nodev,uid=10001,gid=10001
+    user: "10001:10001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:8080/"]
+      start_period: 30s
+      start_interval: 1s
+      interval: 30s
+      timeout: 2s
+      retries: 10
+
+secrets:
+  postgresql_password:
+    file: ${MONITRA_POSTGRES_PASSWORD_FILE:?MONITRA_POSTGRES_PASSWORD_FILE is required}
+
+volumes:
+  postgresql-data:
+  runtime-config:

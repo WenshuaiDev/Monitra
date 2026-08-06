@@ -2,3 +2,6 @@
 /monitra
 /node_modules/
 /web/dist/
+/deployment/production.env
+/deployment/secrets/*
+!/deployment/secrets/.gitkeep

@@ -1,0 +1,9 @@
+.codegraph
+.git
+.scratch
+bin
+deployment/production.env
+deployment/secrets
+node_modules
+tests
+web/dist
