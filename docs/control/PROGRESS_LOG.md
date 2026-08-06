@@ -1,0 +1,14 @@
+# 已接受推进日志
+
+只记录已经接受的推进事件；候选实现和绿色测试在审查接受前不记为正式能力完成。
+
+## 2026-08-06 — 建立项目控制面
+
+- 接受内容：建立总控契约、当前状态、独立任务索引、推进日志和能力覆盖台账。
+- 权威读取：`AGENTS.md`、`docs/inspire.md`、`docs/process-plan.md`、Tracker 约定、全部现有 Spec/Ticket。
+- 仓库基线：`/Users/hijacker/Documents/ChatGPT/Monitra`，分支 `main`，HEAD `d8434f074a5d7bcc313d5ebf8ac544f13e5fb563`。
+- 代码事实：存在 Go 核心进程、类型化环境配置、Management Listener、单一 PostgreSQL 连接池、启动门控、测试和演示脚本。
+- 基线运行证据：在 `d8434f0` 工作树内容上，`task check` 通过；`task demo:startup` 展示成功启动、启动期 `not_ready`、连接后 `ready`、不可连接时有界非零退出。
+- 并发事实：验证期间出现指向 Ticket 02 的未提交工作区修改；更新后的 `task check` 通过，但 `task demo:startup` 在 PostgreSQL 恢复后重新 ready 处失败。总控没有写入或覆盖这些生产文件。
+- 未接受为正式进度：语言/技术栈/工程结构决定、两个未跟踪 Spec、八张 Ticket、`d8434f0` 的 Ticket 01 实现，以及来源未知的 Ticket 02 工作区候选；原因是授权链、任务最终答复和正式审查尚缺，且 Ticket 02 的运行演示当前失败。
+- 下一 Gate：由用户选择第一前沿，并逐项确认候选技术决定。
