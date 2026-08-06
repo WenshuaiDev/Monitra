@@ -13,9 +13,14 @@ tasks:
       - go test ./...
 
   test:web:
-    desc: Run TypeScript transport tests
+    desc: Run browser bootstrap and TypeScript transport tests
     cmds:
       - pnpm test:web
+
+  build:web:
+    desc: Build the production browser application
+    cmds:
+      - pnpm web:build
 
   api:generate:
     desc: Generate TypeScript transport types and client from OpenAPI
@@ -33,7 +38,7 @@ tasks:
       - go test -tags=integration ./tests/startup -count=1
 
   check:
-    desc: Run the authoritative checks available through ticket 03
+    desc: Run the authoritative checks available through ticket 04
     cmds:
       - |
         unformatted="$(gofmt -l cmd internal tests)"
@@ -43,6 +48,7 @@ tasks:
       - task: api:check
       - pnpm typecheck
       - pnpm test:web
+      - pnpm web:build
       - go test -tags=integration ./tests/startup -count=1
 
   demo:startup:

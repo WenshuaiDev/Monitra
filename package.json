@@ -1,6 +1,7 @@
 {
   "name": "monitra",
   "private": true,
+  "type": "module",
   "packageManager": "pnpm@11.16.0",
   "engines": {
     "node": "24.18.0"
@@ -8,14 +9,25 @@
   "scripts": {
     "api:generate": "node scripts/generate-api-client.mjs",
     "test:web": "vitest run web/src",
-    "typecheck": "tsc -p web/tsconfig.json"
+    "typecheck": "tsc -p web/tsconfig.json",
+    "web:build": "vite build --config web/vite.config.ts"
   },
   "dependencies": {
-    "openapi-fetch": "0.17.0"
+    "openapi-fetch": "0.17.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-router-dom": "7.18.2"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "7.0.0",
+    "@testing-library/react": "16.3.2",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "@vitejs/plugin-react": "6.0.5",
+    "jsdom": "30.0.1",
     "openapi-typescript": "7.13.0",
     "typescript": "5.9.3",
+    "vite": "8.2.0",
     "vitest": "4.1.10",
     "yaml": "2.9.0"
   }
