@@ -1,18 +1,18 @@
 # 03 — 类型化启动握手返回可关联的扁平响应
 
 Type: implementation
-Status: ready-for-agent
+Status: resolved
 Blocked by: 01 — PostgreSQL 决定 Go 核心进程的首次启动结果
 
 **What to build:** 建立第一个版本化 HTTP 技术闭环，使调用方通过 OpenAPI 契约取得当前 Release Identity、API major 和服务端生成的 `request_id`，并能用该 ID 关联响应和结构化日志。
 
 ## Acceptance criteria
 
-- [ ] `/api/v1` 下存在由 OpenAPI 描述的启动握手。
-- [ ] 成功响应包含 `code`、`message`、`data`、`request_id`，且 `data` 至少包含 Release Identity 和 API major。
-- [ ] 同一服务端生成的 request ID 出现在响应头、响应体和对应结构化日志中。
-- [ ] 客户端提交的 request ID 不会成为服务端权威 request ID。
-- [ ] TypeScript 客户端可重复生成，并通过可注入的 Foundation HttpClient 执行器发起请求。
+- [x] `/api/v1` 下存在由 OpenAPI 描述的启动握手。
+- [x] 成功响应包含 `code`、`message`、`data`、`request_id`，且 `data` 至少包含 Release Identity 和 API major。
+- [x] 同一服务端生成的 request ID 出现在响应头、响应体和对应结构化日志中。
+- [x] 客户端提交的 request ID 不会成为服务端权威 request ID。
+- [x] TypeScript 客户端可重复生成，并通过可注入的 Foundation HttpClient 执行器发起请求。
 
 ## 它让系统向前移动什么
 

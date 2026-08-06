@@ -1,18 +1,18 @@
 # 06 — Playwright 验证浏览器启动成功与明确失败
 
 Type: evidence
-Status: ready-for-agent
+Status: resolved
 Blocked by: 05 — 生产构建栈通过 Caddy 形成同源启动闭环
 
 **What to build:** 使用根目录 Playwright 和生产构建栈，重复证明浏览器正常启动以及 runtime config 无效、后端不可用、API major 不兼容和 Release Identity 不兼容时的明确失败状态。
 
 ## Acceptance criteria
 
-- [ ] Playwright 从 Caddy公开入口验证正常状态、Release Identity、API major 和非空 request_id。
-- [ ] 无效 runtime config 显示配置失败，不显示正常外壳。
-- [ ] Go 后端不可用显示后端失败，不显示正常外壳。
-- [ ] API major 与 Release Identity 不兼容分别显示准确失败状态。
-- [ ] 所有失败仅由真实配置、服务状态或不兼容生产产物触发，生产代码不存在 E2E 控制。
+- [x] Playwright 从 Caddy公开入口验证正常状态、Release Identity、API major 和非空 request_id。
+- [x] 无效 runtime config 显示配置失败，不显示正常外壳。
+- [x] Go 后端不可用显示后端失败，不显示正常外壳。
+- [x] API major 与 Release Identity 不兼容分别显示准确失败状态。
+- [x] 所有失败仅由真实配置、服务状态或不兼容生产产物触发，生产代码不存在 E2E 控制。
 
 ## 它让系统向前移动什么
 

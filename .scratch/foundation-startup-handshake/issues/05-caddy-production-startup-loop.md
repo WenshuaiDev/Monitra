@@ -1,18 +1,18 @@
 # 05 — 生产构建栈通过 Caddy 形成同源启动闭环
 
 Type: implementation
-Status: ready-for-agent
+Status: resolved
 Blocked by: 02 — 数据库临时中断后同一核心进程自动恢复就绪; 03 — 类型化启动握手返回可关联的扁平响应; 04 — 浏览器 Bootstrap 只在兼容握手后创建 Router
 
 **What to build:** 让操作者使用正式生产构建产物启动 PostgreSQL、Go 和 Caddy，并从唯一公开入口加载 SPA、读取部署期 runtime config、完成同源启动握手。
 
 ## Acceptance criteria
 
-- [ ] PostgreSQL、Go 核心应用和 Caddy 均从正式生产构建产物启动。
-- [ ] Caddy 提供 SPA 和 `/api/v1` 同源代理，但不暴露 Management Listener。
-- [ ] 最小运维配置投影生成严格且不含 Secret 的 runtime config。
-- [ ] 浏览器从 Caddy 完成兼容握手并显示正常启动状态。
-- [ ] 生产容器满足非 root、只读根文件系统、最小 Capability 和 no-new-privileges 约束。
+- [x] PostgreSQL、Go 核心应用和 Caddy 均从正式生产构建产物启动。
+- [x] Caddy 提供 SPA 和 `/api/v1` 同源代理，但不暴露 Management Listener。
+- [x] 最小运维配置投影生成严格且不含 Secret 的 runtime config。
+- [x] 浏览器从 Caddy 完成兼容握手并显示正常启动状态。
+- [x] 生产容器满足非 root、只读根文件系统、最小 Capability 和 no-new-privileges 约束。
 
 ## 它让系统向前移动什么
 

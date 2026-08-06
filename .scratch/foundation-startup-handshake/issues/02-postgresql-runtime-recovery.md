@@ -1,18 +1,18 @@
 # 02 — 数据库临时中断后同一核心进程自动恢复就绪
 
 Type: implementation
-Status: ready-for-agent
+Status: resolved
 Blocked by: 01 — PostgreSQL 决定 Go 核心进程的首次启动结果
 
 **What to build:** 让已经成功进入 ready 的核心进程在 PostgreSQL 临时中断时保持存活并转为 not ready，在数据库恢复后由原有单一连接池自动恢复连接，使同一进程在有限时间内重新 ready。
 
 ## Acceptance criteria
 
-- [ ] PostgreSQL中断后，liveness 保持成功而 readiness 在有限时间内失败。
-- [ ] PostgreSQL恢复后，原有连接池自动恢复，readiness 在有限时间内重新成功。
-- [ ] 数据库中断和恢复前后，核心进程 PID 或容器实例身份不变。
-- [ ] PostgreSQL持续不可用时，核心进程保持 live、not ready，不伪造恢复。
-- [ ] 恢复机制不创建第二连接池，也不透明重试业务语句。
+- [x] PostgreSQL中断后，liveness 保持成功而 readiness 在有限时间内失败。
+- [x] PostgreSQL恢复后，原有连接池自动恢复，readiness 在有限时间内重新成功。
+- [x] 数据库中断和恢复前后，核心进程 PID 或容器实例身份不变。
+- [x] PostgreSQL持续不可用时，核心进程保持 live、not ready，不伪造恢复。
+- [x] 恢复机制不创建第二连接池，也不透明重试业务语句。
 
 ## 它让系统向前移动什么
 

@@ -1,18 +1,18 @@
 # 01 — PostgreSQL 决定 Go 核心进程的首次启动结果
 
 Type: implementation
-Status: ready-for-agent
+Status: resolved
 Blocked by: None — can start immediately
 
 **What to build:** 建立第一个真实 Go 生产进程入口，使应用只在 Foundation 所有的 PostgreSQL 连接池成功连接后进入 ready；首次连接超过限定时间仍未成功时，核心进程完成有界清理并非零退出。
 
 ## Acceptance criteria
 
-- [ ] 真实 PostgreSQL可用时，核心进程在有限时间内从 not ready 进入 ready。
-- [ ] PostgreSQL不可连接时，readiness 从未成功，核心进程在启动期限结束后非零退出。
-- [ ] 启动等待和失败期间，liveness 与 readiness 表达不同含义，结构化日志不泄露 Secret。
-- [ ] 生产运行只创建一个由 Foundation 所有的有界关系数据库连接池。
-- [ ] 根目录存在可重复执行的 Task 测试和演示入口。
+- [x] 真实 PostgreSQL可用时，核心进程在有限时间内从 not ready 进入 ready。
+- [x] PostgreSQL不可连接时，readiness 从未成功，核心进程在启动期限结束后非零退出。
+- [x] 启动等待和失败期间，liveness 与 readiness 表达不同含义，结构化日志不泄露 Secret。
+- [x] 生产运行只创建一个由 Foundation 所有的有界关系数据库连接池。
+- [x] 根目录存在可重复执行的 Task 测试和演示入口。
 
 ## 它让系统向前移动什么
 

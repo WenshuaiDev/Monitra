@@ -7,6 +7,7 @@
 | `CTRL-INIT-20260806` | 初始化 Monitra 总控，只修改治理/状态文档 | 项目控制面 | 接受 | 已完整读取权威、当前 Tracker 和代码；建立控制文档；未修改生产代码 |
 | 未提供（本地候选 `d8434f0`） | 无法从当前输入确认；代码形状对应 Ticket 01“PostgreSQL 决定 Go 核心进程的首次启动结果” | 最小可运行工程基座 / 技术启动闭环 | 证据不足 | `task check` 与 `task demo:startup` 于 2026-08-06 通过；缺原任务 ID、原授权、完整最终答复和正式语义审查；Ticket 仍为 `ready-for-agent` |
 | 未提供（并发未提交工作区） | 无法从当前输入确认；差异形状对应 Ticket 02“数据库临时中断后同一核心进程自动恢复就绪” | 最小可运行工程基座 / 技术启动闭环 | 证据不足 | 2026-08-06 更新后的 `task check` 通过，但 `task demo:startup` 在 PostgreSQL 恢复后重新 ready 处失败；来源、任务 ID、原授权和最终答复均未知；总控未修改或覆盖这些文件 |
+| `FRONTIER-FOUNDATION-STARTUP-20260806` | 用户确认并要求同步 `.scratch/foundation-startup-handshake/spec.md` 的完成事实 | 第一个生产形态技术启动闭环 | 接受 | 当前 HEAD `32b2ecc`；工作区验收前干净；完整提交链覆盖 01—08；`task check` 权威门禁 11/11 通过；Spec 和八张 Ticket 已同步为 `resolved` |
 
 ## 状态说明
 

@@ -1,6 +1,6 @@
 # Monitra 第一个生产形态技术启动闭环
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem Statement
 

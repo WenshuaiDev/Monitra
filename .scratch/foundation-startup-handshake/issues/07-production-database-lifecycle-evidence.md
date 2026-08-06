@@ -1,18 +1,18 @@
 # 07 — 生产栈证明数据库首次失败及运行期自动恢复
 
 Type: evidence
-Status: ready-for-agent
+Status: resolved
 Blocked by: 05 — 生产构建栈通过 Caddy 形成同源启动闭环
 
 **What to build:** 在正式 Compose 运行形态中证明首次数据库连接失败必然使 Go 核心进程非零退出，并证明已经 ready 的核心进程能够在数据库中断和恢复期间保持同一实例、自动重新 ready。
 
 ## Acceptance criteria
 
-- [ ] 首次启动时 PostgreSQL不可连接，Go 核心进程在限定时间后非零退出且从未 ready。
-- [ ] 正常运行后停止 PostgreSQL，核心进程不退出、不重启，liveness 成功、readiness 失败。
-- [ ] 恢复 PostgreSQL后，同一连接池自动恢复，readiness 在有限时间内重新成功。
-- [ ] 中断前后 Go 核心进程 PID 或容器实例 ID 不变。
-- [ ] 所有数据库控制都位于外部测试编排，生产代码无测试专用逻辑。
+- [x] 首次启动时 PostgreSQL不可连接，Go 核心进程在限定时间后非零退出且从未 ready。
+- [x] 正常运行后停止 PostgreSQL，核心进程不退出、不重启，liveness 成功、readiness 失败。
+- [x] 恢复 PostgreSQL后，同一连接池自动恢复，readiness 在有限时间内重新成功。
+- [x] 中断前后 Go 核心进程 PID 或容器实例 ID 不变。
+- [x] 所有数据库控制都位于外部测试编排，生产代码无测试专用逻辑。
 
 ## 它让系统向前移动什么
 

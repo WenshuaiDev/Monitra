@@ -1,18 +1,18 @@
 # 04 — 浏览器 Bootstrap 只在兼容握手后创建 Router
 
 Type: implementation
-Status: ready-for-agent
+Status: resolved
 Blocked by: 03 — 类型化启动握手返回可关联的扁平响应
 
 **What to build:** 建立 React SPA 的永久启动状态机，使有效配置和兼容握手进入正常技术外壳；配置无效、后端不可用或版本不兼容时，在 Router 创建前显示准确失败状态。
 
 ## Acceptance criteria
 
-- [ ] runtime config 在 Foundation HttpClient 和 Router 创建前完成加载与严格校验。
-- [ ] 有效配置通过 Foundation HttpClient 和生成客户端执行启动握手。
-- [ ] 只有 API major 与 Release Identity 均兼容时才创建 Router并显示正常状态。
-- [ ] 正常状态显示 Release Identity、API major 和非空 request_id。
-- [ ] 无效配置、后端不可用、API major 不兼容和 Release Identity 不兼容分别显示明确失败状态，且不显示正常外壳。
+- [x] runtime config 在 Foundation HttpClient 和 Router 创建前完成加载与严格校验。
+- [x] 有效配置通过 Foundation HttpClient 和生成客户端执行启动握手。
+- [x] 只有 API major 与 Release Identity 均兼容时才创建 Router并显示正常状态。
+- [x] 正常状态显示 Release Identity、API major 和非空 request_id。
+- [x] 无效配置、后端不可用、API major 不兼容和 Release Identity 不兼容分别显示明确失败状态，且不显示正常外壳。
 
 ## 它让系统向前移动什么
 
