@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -135,8 +136,26 @@ observe:
 
 type coreProcess struct {
 	command *exec.Cmd
-	output  bytes.Buffer
+	output  synchronizedBuffer
 	waited  chan error
+	done    chan struct{}
+}
+
+type synchronizedBuffer struct {
+	mutex  sync.Mutex
+	buffer bytes.Buffer
+}
+
+func (buffer *synchronizedBuffer) Write(contents []byte) (int, error) {
+	buffer.mutex.Lock()
+	defer buffer.mutex.Unlock()
+	return buffer.buffer.Write(contents)
+}
+
+func (buffer *synchronizedBuffer) String() string {
+	buffer.mutex.Lock()
+	defer buffer.mutex.Unlock()
+	return buffer.buffer.String()
 }
 
 func startCoreProcess(t *testing.T, binary, managementAddress, postgresAddress, startupTimeout string) *coreProcess {
@@ -148,6 +167,7 @@ func startCoreProcess(t *testing.T, binary, managementAddress, postgresAddress, 
 	process := &coreProcess{
 		command: exec.Command(binary),
 		waited:  make(chan error, 1),
+		done:    make(chan struct{}),
 	}
 	process.command.Env = processEnvironment(map[string]string{
 		"MONITRA_RELEASE_IDENTITY":         "integration-test",
@@ -166,11 +186,17 @@ func startCoreProcess(t *testing.T, binary, managementAddress, postgresAddress, 
 	if err := process.command.Start(); err != nil {
 		t.Fatalf("start core process: %v", err)
 	}
-	go func() { process.waited <- process.command.Wait() }()
+	go func() {
+		process.waited <- process.command.Wait()
+		close(process.done)
+	}()
 	t.Cleanup(func() {
-		if process.command.ProcessState == nil {
+		select {
+		case <-process.done:
+			return
+		default:
 			_ = process.command.Process.Kill()
-			<-process.waited
+			<-process.done
 		}
 	})
 	return process
