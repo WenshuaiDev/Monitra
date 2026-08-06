@@ -1,0 +1,7 @@
+services:
+  caddy:
+    volumes:
+      - type: bind
+        source: ${MONITRA_E2E_RUNTIME_CONFIG_DIR:?MONITRA_E2E_RUNTIME_CONFIG_DIR is required}
+        target: /runtime-config
+        read_only: true

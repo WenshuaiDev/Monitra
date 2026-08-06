@@ -48,6 +48,12 @@ tasks:
     cmds:
       - sh scripts/test-production-stack.sh
 
+  test:e2e:
+    desc: Verify browser startup behavior against an isolated production stack
+    cmds:
+      - pnpm exec playwright install chromium
+      - sh scripts/test-playwright-startup.sh
+
   api:generate:
     desc: Generate TypeScript transport types and client from OpenAPI
     cmds:

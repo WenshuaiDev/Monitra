@@ -8,8 +8,9 @@
   },
   "scripts": {
     "api:generate": "node scripts/generate-api-client.mjs",
+    "test:e2e": "playwright test",
     "test:web": "vitest run web/src",
-    "typecheck": "tsc -p web/tsconfig.json",
+    "typecheck": "tsc -p web/tsconfig.json && tsc -p e2e/tsconfig.json",
     "web:build": "vite build --config web/vite.config.ts"
   },
   "dependencies": {
@@ -19,8 +20,10 @@
     "react-router-dom": "7.18.2"
   },
   "devDependencies": {
+    "@playwright/test": "1.62.1",
     "@testing-library/jest-dom": "7.0.0",
     "@testing-library/react": "16.3.2",
+    "@types/node": "26.1.2",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
     "@vitejs/plugin-react": "6.0.5",

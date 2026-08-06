@@ -1,9 +1,13 @@
 .codegraph
 .git
 .scratch
+e2e
+playwright-report
+playwright.config.ts
 bin
 deployment/production.env
 deployment/secrets
 node_modules
 tests
+test-results
 web/dist

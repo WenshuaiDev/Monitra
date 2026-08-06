@@ -24,3 +24,19 @@ task production:down
 `production:down` preserves the PostgreSQL and runtime-config volumes. Set
 `MONITRA_PRODUCTION_ENV_FILE` to use an env file at another path. The PostgreSQL
 password is referenced as a Compose Secret file and must never be committed.
+
+## Browser startup acceptance
+
+Run all browser-visible startup scenarios against isolated production-built
+services with:
+
+```sh
+task test:e2e
+```
+
+The Task installs the pinned Playwright Chromium runtime, builds the production
+core and Caddy images, and verifies the compatible startup state plus invalid
+runtime config, unavailable core, API-major mismatch, and Release Identity
+mismatch. Each scenario adds a browser screenshot, Compose state, and timestamped
+service logs to `playwright-report/index.html`. The isolated Compose project and
+its volumes are removed whether the suite passes or fails.
